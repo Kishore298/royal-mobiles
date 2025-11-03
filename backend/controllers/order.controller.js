@@ -1,8 +1,11 @@
-const Order = require('../models/order.model');
-const Notification = require('../models/notification.model');
-const Product = require('../models/product.model');
-const asyncHandler = require('express-async-handler');
-const { sendOrderConfirmationEmail, sendOrderNotificationEmail } = require('../utils/email');
+const Order = require("../models/order.model");
+const Notification = require("../models/notification.model");
+const Product = require("../models/product.model");
+const asyncHandler = require("express-async-handler");
+const {
+  sendOrderConfirmationEmail,
+  sendOrderNotificationEmail,
+} = require("../utils/email");
 
 // @desc    Get all orders
 // @route   GET /api/orders
@@ -13,7 +16,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     count: orders.length,
-    data: orders
+    data: orders,
   });
 });
 
@@ -26,13 +29,13 @@ exports.getOrder = asyncHandler(async (req, res) => {
   if (!order) {
     return res.status(404).json({
       success: false,
-      message: 'Order not found'
+      message: "Order not found",
     });
   }
 
   res.status(200).json({
     success: true,
-    data: order
+    data: order,
   });
 });
 
@@ -41,59 +44,69 @@ exports.getOrder = asyncHandler(async (req, res) => {
 // @access  Public
 exports.createOrder = asyncHandler(async (req, res) => {
   try {
-    console.log('Creating order with data:', JSON.stringify(req.body, null, 2));
-    
+    console.log("Creating order with data:", JSON.stringify(req.body, null, 2));
+
+    console.log('Type of orderItems:', typeof req.body.orderItems);
+console.log('Is array:', Array.isArray(req.body.orderItems));
+
+    if (!req.body.orderItems || !Array.isArray(req.body.orderItems)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order format – orderItems must be an array",
+      });
+    }
+
     // Update product stocks
     for (const item of req.body.orderItems) {
       const product = await Product.findById(item.product);
       if (!product) {
         return res.status(404).json({
           success: false,
-          message: `Product ${item.product} not found`
+          message: `Product ${item.product} not found`,
         });
       }
-      
+
       if (product.stock < item.quantity) {
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for product ${product.name}`
+          message: `Insufficient stock for product ${product.name}`,
         });
       }
-      
+
       await product.updateStock(item.quantity);
     }
 
     // Create the order
     const order = await Order.create(req.body);
-    console.log('Order created successfully:', order._id);
+    console.log("Order created successfully:", order._id);
 
     // Send emails in parallel
     const emailPromises = [
-      sendOrderConfirmationEmail(order).catch(error => {
-        console.error('Failed to send order confirmation email:', error);
-        return { error: 'Failed to send confirmation email' };
+      sendOrderConfirmationEmail(order).catch((error) => {
+        console.error("Failed to send order confirmation email:", error);
+        return { error: "Failed to send confirmation email" };
       }),
-      sendOrderNotificationEmail(order).catch(error => {
-        console.error('Failed to send admin notification email:', error);
-        return { error: 'Failed to send admin notification email' };
-      })
+      sendOrderNotificationEmail(order).catch((error) => {
+        console.error("Failed to send admin notification email:", error);
+        return { error: "Failed to send admin notification email" };
+      }),
     ];
 
     // Wait for all email operations to complete
     const emailResults = await Promise.all(emailPromises);
-    const emailErrors = emailResults.filter(result => result.error);
+    const emailErrors = emailResults.filter((result) => result.error);
 
     // Create notification
     try {
       await Notification.create({
-        title: 'New Order Received',
+        title: "New Order Received",
         message: `Order #${order._id} has been received from ${order.user.name}`,
-        type: 'order',
-        data: { orderId: order._id }
+        type: "order",
+        data: { orderId: order._id },
       });
-      console.log('Order notification created');
+      console.log("Order notification created");
     } catch (notificationError) {
-      console.error('Error creating order notification:', notificationError);
+      console.error("Error creating order notification:", notificationError);
     }
 
     // Return response with email status
@@ -103,15 +116,15 @@ exports.createOrder = asyncHandler(async (req, res) => {
       emailStatus: {
         confirmationSent: !emailResults[0].error,
         notificationSent: !emailResults[1].error,
-        errors: emailErrors.length > 0 ? emailErrors : undefined
-      }
+        errors: emailErrors.length > 0 ? emailErrors : undefined,
+      },
     });
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error("Error creating order:", error);
     res.status(500).json({
       success: false,
-      message: 'Error creating order',
-      error: error.message
+      message: "Error creating order",
+      error: error.message,
     });
   }
 });
@@ -125,7 +138,7 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   if (!order) {
     return res.status(404).json({
       success: false,
-      message: 'Order not found'
+      message: "Order not found",
     });
   }
 
@@ -136,16 +149,16 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   // Create notification for status change
   if (oldStatus !== order.orderStatus) {
     await Notification.create({
-      title: 'Order Status Updated',
+      title: "Order Status Updated",
       message: `Order #${order._id} status changed from ${oldStatus} to ${order.orderStatus}`,
-      type: 'order',
-      data: { orderId: order._id }
+      type: "order",
+      data: { orderId: order._id },
     });
   }
 
   res.status(200).json({
     success: true,
-    data: order
+    data: order,
   });
 });
 
@@ -158,7 +171,7 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
   if (!order) {
     return res.status(404).json({
       success: false,
-      message: 'Order not found'
+      message: "Order not found",
     });
   }
 
@@ -166,6 +179,6 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: {}
+    data: {},
   });
-}); 
+});
