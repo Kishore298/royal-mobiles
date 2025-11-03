@@ -38,28 +38,39 @@ exports.getOrder = asyncHandler(async (req, res) => {
     data: order,
   });
 });
-
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Public
 exports.createOrder = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    console.log("Creating order with data:", JSON.stringify(req.body, null, 2));
+    const { orderItems, user, itemsPrice, shippingPrice, taxPrice, totalPrice, orderStatus, paymentInfo, isPaid, isDelivered } = req.body;
 
-    console.log('Type of orderItems:', typeof req.body.orderItems);
-console.log('Is array:', Array.isArray(req.body.orderItems));
-
-    if (!req.body.orderItems || !Array.isArray(req.body.orderItems)) {
+    // Validate orderItems
+    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Invalid order format – orderItems must be an array",
+        message: 'Invalid order format – orderItems must be a non-empty array',
       });
     }
 
-    // Update product stocks
-    for (const item of req.body.orderItems) {
-      const product = await Product.findById(item.product);
+    // Validate each item
+    for (const item of orderItems) {
+      if (!item.product || !item.quantity || !item.price) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each orderItem must have product, quantity, and price',
+        });
+      }
+    }
+
+    // Update stock for all products
+    for (const item of orderItems) {
+      const product = await Product.findById(item.product).session(session);
       if (!product) {
+        await session.abortTransaction();
         return res.status(404).json({
           success: false,
           message: `Product ${item.product} not found`,
@@ -67,52 +78,76 @@ console.log('Is array:', Array.isArray(req.body.orderItems));
       }
 
       if (product.stock < item.quantity) {
+        await session.abortTransaction();
         return res.status(400).json({
           success: false,
           message: `Insufficient stock for product ${product.name}`,
         });
       }
 
-      await product.updateStock(item.quantity);
+      // Update stock safely
+      product.stock -= item.quantity;
+      product.inStock = product.stock > 0;
+      await product.save({ session });
     }
 
-    // Create the order
-    const order = await Order.create(req.body);
-    console.log("Order created successfully:", order._id);
+    // Create order
+    const order = await Order.create(
+      [
+        {
+          orderItems,
+          user,
+          itemsPrice,
+          shippingPrice,
+          taxPrice,
+          totalPrice,
+          orderStatus,
+          paymentInfo,
+          isPaid,
+          isDelivered,
+        },
+      ],
+      { session }
+    );
 
     // Send emails in parallel
     const emailPromises = [
-      sendOrderConfirmationEmail(order).catch((error) => {
-        console.error("Failed to send order confirmation email:", error);
-        return { error: "Failed to send confirmation email" };
+      sendOrderConfirmationEmail(order[0]).catch((err) => {
+        console.error('Failed to send order confirmation email:', err);
+        return { error: 'Failed to send confirmation email' };
       }),
-      sendOrderNotificationEmail(order).catch((error) => {
-        console.error("Failed to send admin notification email:", error);
-        return { error: "Failed to send admin notification email" };
+      sendOrderNotificationEmail(order[0]).catch((err) => {
+        console.error('Failed to send admin notification email:', err);
+        return { error: 'Failed to send admin notification email' };
       }),
     ];
 
-    // Wait for all email operations to complete
     const emailResults = await Promise.all(emailPromises);
-    const emailErrors = emailResults.filter((result) => result.error);
+    const emailErrors = emailResults.filter((r) => r.error);
 
     // Create notification
     try {
-      await Notification.create({
-        title: "New Order Received",
-        message: `Order #${order._id} has been received from ${order.user.name}`,
-        type: "order",
-        data: { orderId: order._id },
-      });
-      console.log("Order notification created");
+      await Notification.create(
+        [
+          {
+            title: 'New Order Received',
+            message: `Order #${order[0]._id} has been received from ${user.name}`,
+            type: 'order',
+            data: { orderId: order[0]._id },
+          },
+        ],
+        { session }
+      );
     } catch (notificationError) {
-      console.error("Error creating order notification:", notificationError);
+      console.error('Failed to create order notification:', notificationError);
     }
 
-    // Return response with email status
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(201).json({
       success: true,
-      data: order,
+      data: order[0],
       emailStatus: {
         confirmationSent: !emailResults[0].error,
         notificationSent: !emailResults[1].error,
@@ -120,10 +155,12 @@ console.log('Is array:', Array.isArray(req.body.orderItems));
       },
     });
   } catch (error) {
-    console.error("Error creating order:", error);
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Error creating order:', error);
     res.status(500).json({
       success: false,
-      message: "Error creating order",
+      message: 'Error creating order',
       error: error.message,
     });
   }
