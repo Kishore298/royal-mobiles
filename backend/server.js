@@ -44,7 +44,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors({
   origin: [
     'https://royal-mobiles-user.vercel.app',
-    'https://royal-mobiles-prabhu.vercel.app'
+    'https://royal-mobiles-prabhu.vercel.app',
+    'http://localhost:3001',
+    'http://localhost:3000'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
