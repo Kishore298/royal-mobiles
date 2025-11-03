@@ -44,7 +44,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     console.log('Creating order with data:', JSON.stringify(req.body, null, 2));
     
     // Update product stocks
-    for (const item of req.body.items) {
+    for (const item of req.body.orderItems) {
       const product = await Product.findById(item.product);
       if (!product) {
         return res.status(404).json({
