@@ -44,12 +44,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // ✅ Updated CORS middleware
 app.use(cors({
-   origin: [
-      'https://royal-mobiles.vercel.app',
-      'https://royal-mobiles-admin.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:3001',
-    ],
+  origin: [
+    'https://royal-mobiles.vercel.app',
+    'https://royal-mobiles-user-nu.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
