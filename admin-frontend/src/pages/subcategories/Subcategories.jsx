@@ -119,10 +119,15 @@ const Subcategories = () => {
         }
         toast.success('Subcategory updated successfully');
       } else {
-        const response = await createSubcategory(subcategoryData);
+        const formDataPayload = new FormData();
+        formDataPayload.append('name', formData.name);
+        formDataPayload.append('description', formData.description);
+        formDataPayload.append('category', formData.category);
         if (formData.image) {
-          await uploadSubcategoryImage(response.data.data._id, formData.image);
+          formDataPayload.append('image', formData.image);
         }
+
+        await createSubcategory(formDataPayload);
         toast.success('Subcategory created successfully');
       }
 

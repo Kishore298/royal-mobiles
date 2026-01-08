@@ -89,10 +89,10 @@ export const ProductCard = ({ image, title, description, price, onAddToCart, onE
 
       <div className="p-2 sm:p-4 flex flex-col flex-grow">
         <div className="flex-grow">
-          <h3 className="text-xs sm:text-base font-medium text-gray-900 line-clamp-2 leading-tight mb-1 h-8 sm:h-10 overflow-hidden">
+          <h3 className="text-xs sm:text-base font-medium text-gray-900 leading-tight mb-1 overflow-hidden">
             {title}
           </h3>
-          <div className="mb-2">
+          <div className="mb-1 sm:mb-2">
             <span className="text-sm sm:text-lg font-bold text-gray-900">₹{price}</span>
           </div>
         </div>
@@ -100,7 +100,7 @@ export const ProductCard = ({ image, title, description, price, onAddToCart, onE
         {getStockStatus()}
 
         {onAddToCart && (
-          <div className="mt-2 pt-2 border-t border-gray-50">
+          <div className="mt-1 sm:mt-2 pt-1 sm:pt-2 border-t border-gray-50">
             {/* Quantity and Add to Cart Section */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-1">

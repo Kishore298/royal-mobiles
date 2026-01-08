@@ -177,10 +177,21 @@ const Products = () => {
         }
         toast.success('Product updated successfully');
       } else {
-        const response = await createProduct(productData);
-        if (formData.images.length > 0) {
-          await uploadProductImages(response.data.data._id, formData.images);
-        }
+        // Create FormData for new product
+        const formDataPayload = new FormData();
+        formDataPayload.append('name', formData.name);
+        formDataPayload.append('description', formData.description);
+        formDataPayload.append('price', formData.price);
+        formDataPayload.append('stock', formData.stock);
+        formDataPayload.append('category', formData.category);
+        formDataPayload.append('subcategory', formData.subcategory);
+
+        // Append images
+        formData.images.forEach((image) => {
+          formDataPayload.append('images', image);
+        });
+
+        await createProduct(formDataPayload);
         toast.success('Product created successfully');
       }
 

@@ -117,9 +117,6 @@ exports.getOrder = asyncHandler(async (req, res) => {
 // @route   POST /api/orders
 // @access  Public
 exports.createOrder = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { orderItems, user, itemsPrice, shippingPrice, taxPrice, totalPrice, orderStatus, paymentInfo, isPaid, isDelivered } = req.body;
 
@@ -145,9 +142,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
     // Update stock for all products
     for (const item of orderItems) {
-      const product = await Product.findById(item.product).session(session);
+      const product = await Product.findById(item.product);
       if (!product) {
-        await session.abortTransaction();
         return res.status(404).json({
           success: false,
           message: `Product ${item.product} not found`,
@@ -155,7 +151,6 @@ exports.createOrder = asyncHandler(async (req, res) => {
       }
 
       if (product.stock < item.quantity) {
-        await session.abortTransaction();
         return res.status(400).json({
           success: false,
           message: `Insufficient stock for product ${product.name}`,
@@ -165,7 +160,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       // Update stock safely
       product.stock -= item.quantity;
       product.inStock = product.stock > 0;
-      await product.save({ session });
+      await product.save();
 
       if (product.stock < 10) {
         lowStockProducts.push(product);
@@ -173,31 +168,26 @@ exports.createOrder = asyncHandler(async (req, res) => {
     }
 
     // Create order
-    const order = await Order.create(
-      [
-        {
-          orderItems,
-          user,
-          itemsPrice,
-          shippingPrice,
-          taxPrice,
-          totalPrice,
-          orderStatus,
-          paymentInfo,
-          isPaid,
-          isDelivered,
-        },
-      ],
-      { session }
-    );
+    const order = await Order.create({
+      orderItems,
+      user,
+      itemsPrice,
+      shippingPrice,
+      taxPrice,
+      totalPrice,
+      orderStatus,
+      paymentInfo,
+      isPaid,
+      isDelivered,
+    });
 
     // Send emails in parallel
     const emailPromises = [
-      sendOrderConfirmationEmail(order[0]).catch((err) => {
+      sendOrderConfirmationEmail(order).catch((err) => {
         console.error('Failed to send order confirmation email:', err);
         return { error: 'Failed to send confirmation email' };
       }),
-      sendOrderNotificationEmail(order[0]).catch((err) => {
+      sendOrderNotificationEmail(order).catch((err) => {
         console.error('Failed to send admin notification email:', err);
         return { error: 'Failed to send admin notification email' };
       }),
@@ -212,33 +202,27 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
     // Create notifications
     try {
-      await Notification.create(
-        [
-          {
-            title: 'New Order Received',
-            message: `Order #${order[0]._id} has been received from ${user.name}`,
-            type: 'order',
-            data: { orderId: order[0]._id },
-          },
-          ...lowStockProducts.map(p => ({
-            title: 'Low Stock Alert',
-            message: `Product "${p.name}" has low stock (${p.stock} remaining).`,
-            type: 'low_stock',
-            data: { productId: p._id, currentStock: p.stock }
-          }))
-        ],
-        { session }
-      );
+      await Notification.create([
+        {
+          title: 'New Order Received',
+          message: `Order #${order._id} has been received from ${user.name}`,
+          type: 'order',
+          data: { orderId: order._id },
+        },
+        ...lowStockProducts.map(p => ({
+          title: 'Low Stock Alert',
+          message: `Product "${p.name}" has low stock (${p.stock} remaining).`,
+          type: 'low_stock',
+          data: { productId: p._id, currentStock: p.stock }
+        }))
+      ]);
     } catch (notificationError) {
       console.error('Failed to create order notification:', notificationError);
     }
 
-    await session.commitTransaction();
-    session.endSession();
-
     res.status(201).json({
       success: true,
-      data: order[0],
+      data: order,
       emailStatus: {
         confirmationSent: !emailResults[0].error,
         notificationSent: !emailResults[1].error,
@@ -246,8 +230,6 @@ exports.createOrder = asyncHandler(async (req, res) => {
       },
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('Error creating order:', error);
     res.status(500).json({
       success: false,

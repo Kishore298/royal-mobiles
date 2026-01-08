@@ -17,7 +17,7 @@ router.get('/:id', getCategory);
 router.get('/:id/subcategories', getSubcategoriesByCategory);
 
 // Admin routes
-router.post('/', protect, authorize('admin'), createCategory);
+router.post('/', protect, authorize('admin'), upload.single('image'), createCategory);
 router.put('/:id', protect, authorize('admin'), updateCategory);
 router.delete('/:id', protect, authorize('admin'), deleteCategory);
 router.put('/:id/image', protect, authorize('admin'), upload.single('image'), uploadCategoryImage);

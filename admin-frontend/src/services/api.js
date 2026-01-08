@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://royal-mobiles-backend.onrender.com/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -38,20 +38,22 @@ export const logout = () => {
 };
 
 // Category APIs
+// Category APIs
 export const getCategories = (params) => api.get('/categories', { params });
 export const getAllCategories = () => api.get('/categories', { params: { limit: 1000 } }); // For dropdowns - fetch all
 export const getCategory = (id) => api.get(`/categories/${id}`);
-export const createCategory = (data) => api.post('/categories', data);
+export const createCategory = (data) => {
+  if (data instanceof FormData) {
+    return api.post('/categories', data);
+  }
+  return api.post('/categories', data);
+};
 export const updateCategory = (id, data) => api.put(`/categories/${id}`, data);
 export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 export const uploadCategoryImage = (id, image) => {
   const formData = new FormData();
   formData.append('image', image);
-  return api.put(`/categories/${id}/image`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  });
+  return api.put(`/categories/${id}/image`, formData);
 };
 
 // Subcategory APIs
@@ -60,33 +62,35 @@ export const getAllSubcategories = (categoryId) => api.get('/subcategories', {
   params: { limit: 1000, ...(categoryId && { category: categoryId }) }
 }); // For dropdowns - fetch all
 export const getSubcategory = (id) => api.get(`/subcategories/${id}`);
-export const createSubcategory = (data) => api.post('/subcategories', data);
+export const createSubcategory = (data) => {
+  if (data instanceof FormData) {
+    return api.post('/subcategories', data);
+  }
+  return api.post('/subcategories', data);
+};
 export const updateSubcategory = (id, data) => api.put(`/subcategories/${id}`, data);
 export const deleteSubcategory = (id) => api.delete(`/subcategories/${id}`);
 export const uploadSubcategoryImage = (id, image) => {
   const formData = new FormData();
   formData.append('image', image);
-  return api.put(`/subcategories/${id}/image`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  });
+  return api.put(`/subcategories/${id}/image`, formData);
 };
 
 // Product APIs
 export const getProducts = (params) => api.get('/products', { params });
 export const getProduct = (id) => api.get(`/products/${id}`);
-export const createProduct = (data) => api.post('/products', data);
+export const createProduct = (data) => {
+  if (data instanceof FormData) {
+    return api.post('/products', data);
+  }
+  return api.post('/products', data);
+};
 export const updateProduct = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct = (id) => api.delete(`/products/${id}`);
 export const uploadProductImages = (id, images) => {
   const formData = new FormData();
   images.forEach((image) => formData.append('images', image));
-  return api.put(`/products/${id}/images`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  });
+  return api.put(`/products/${id}/images`, formData);
 };
 
 // Order APIs

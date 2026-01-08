@@ -196,7 +196,23 @@ exports.getProduct = catchAsync(async (req, res, next) => {
 
 // Create a new product
 exports.createProduct = catchAsync(async (req, res, next) => {
-  const product = await Product.create(req.body);
+  let productData = req.body;
+
+  // Handle file uploads
+  if (req.files && req.files.length > 0) {
+    const images = req.files.map(file => ({
+      public_id: file.filename,
+      url: file.path
+    }));
+    productData.images = images;
+  }
+
+  // If using FormData, some fields might need parsing if they are nested objects/arrays,
+  // but Mongoose schema type coercion usually handles basic types (Number, String).
+  // Just in case, if the client sends stringified JSON for arrays/objects in FormData:
+  // (Not strictly necessary if client sends flat fields, but good for robustness)
+
+  const product = await Product.create(productData);
 
   res.status(201).json({
     status: 'success',

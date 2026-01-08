@@ -157,7 +157,14 @@ exports.getProductsBySubcategory = asyncHandler(async (req, res) => {
 // @route   POST /api/subcategories
 // @access  Private/Admin
 exports.createSubcategory = asyncHandler(async (req, res) => {
-  const subcategory = await Subcategory.create(req.body);
+  let subcategoryData = req.body;
+  if (req.file) {
+    subcategoryData.image = {
+      public_id: req.file.filename,
+      url: req.file.path
+    };
+  }
+  const subcategory = await Subcategory.create(subcategoryData);
 
   res.status(201).json({
     success: true,

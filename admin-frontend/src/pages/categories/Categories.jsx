@@ -99,10 +99,14 @@ const Categories = () => {
         }
         toast.success('Category updated successfully');
       } else {
-        const response = await createCategory(categoryData);
+        const formDataPayload = new FormData();
+        formDataPayload.append('name', formData.name);
+        formDataPayload.append('description', formData.description);
         if (formData.image) {
-          await uploadCategoryImage(response.data.data._id, formData.image);
+          formDataPayload.append('image', formData.image);
         }
+
+        await createCategory(formDataPayload);
         toast.success('Category created successfully');
       }
 
