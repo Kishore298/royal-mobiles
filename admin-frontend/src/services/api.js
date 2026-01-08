@@ -4,9 +4,6 @@ const API_URL = process.env.REACT_APP_API_URL || 'https://royal-mobiles-backend.
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Add token to requests if it exists

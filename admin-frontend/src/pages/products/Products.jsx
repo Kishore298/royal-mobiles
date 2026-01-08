@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Image as ImageIcon, Search, ArrowUpDown, Filter, Package, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { toast } from 'react-hot-toast';
@@ -48,7 +48,7 @@ const Products = () => {
     productId: null,
     productName: ''
   });
-  const fetchRef = useRef(false);
+
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -71,8 +71,6 @@ const Products = () => {
   };
 
   const fetchProducts = useCallback(async (pageNum = 1) => {
-    if (fetchRef.current) return;
-    fetchRef.current = true;
     try {
       setIsLoading(true);
       const response = await getProducts({
@@ -95,9 +93,9 @@ const Products = () => {
     } catch (error) {
       console.error('Error fetching products:', error);
       toast.error('Failed to fetch products');
+      setProducts([]);
     } finally {
       setIsLoading(false);
-      fetchRef.current = false;
     }
   }, [searchQuery, sortBy, sortOrder, filters, limit]);
 

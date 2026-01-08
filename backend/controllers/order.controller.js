@@ -198,7 +198,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     ];
 
     const emailResults = await Promise.all(emailPromises);
-    const emailErrors = emailResults.filter((r) => r.error);
+    const emailErrors = emailResults.filter((r) => r && r.error);
 
     // Create notifications
     try {
@@ -224,8 +224,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
       success: true,
       data: order,
       emailStatus: {
-        confirmationSent: !emailResults[0].error,
-        notificationSent: !emailResults[1].error,
+        confirmationSent: !(emailResults[0] && emailResults[0].error),
+        notificationSent: !(emailResults[1] && emailResults[1].error),
         errors: emailErrors.length > 0 ? emailErrors : undefined,
       },
     });

@@ -66,7 +66,8 @@ export const getCart = () => {
   return cart ? JSON.parse(cart) : [];
 };
 
-export const addToCart = (product, quantity = 1) => {
+export const addToCart = (product, quantityArg) => {
+  const quantity = quantityArg || product.quantity || 1;
   const cart = getCart();
   const existingItem = cart.find(item => item._id === product._id);
 

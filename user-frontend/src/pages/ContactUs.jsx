@@ -38,17 +38,9 @@ const ContactUs = () => {
             action: "mailto:royalmobiles1994@gmail.com"
         },
         {
-            icon: MapPin,
-            title: "Visit Store",
-            content: "2/1607, Sithurajapuram, Sivakasi, Tamil Nadu 626189",
-            subContent: "Sithrajapuram Main Road, Sithrajapuram",
-            color: "from-orange-500 to-red-400",
-            action: "https://maps.app.goo.gl/8hNqmFW2RiwZ2cfc7"
-        },
-        {
             icon: Clock,
             title: "Working Hours",
-            content: "9:30 AM - 9:30 PM",
+            content: "9:30 AM - 5:30 PM",
             subContent: "Open all days. May differ on holidays",
             color: "from-indigo-500 to-purple-400",
             action: null

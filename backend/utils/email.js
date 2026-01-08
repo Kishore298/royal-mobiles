@@ -31,7 +31,7 @@ const sendOrderConfirmationEmail = async (order) => {
         </ul>
         <p>The retailer will contact you shortly regarding your order. Please be patient.</p>
         <p>If you have any questions, please don't hesitate to contact us.</p>
-        <p>Best regards,<br>Royal Mobiles Team</p>
+        <p>Best regards,<br>Royal Mobiles Team</p><br><p>+91 6369122194</p>
       </div>
     `
   };
@@ -91,7 +91,7 @@ const sendLowStockEmail = async (product) => {
           <li>Product ID: ${product._id}</li>
         </ul>
         <p>Please restock this item soon.</p>
-        <p>Best regards,<br>Royal Mobiles System</p>
+        <p>Best regards,<br>Royal Mobiles System</p><br><p>+91 6369122194</p>
       </div>
     `
   };

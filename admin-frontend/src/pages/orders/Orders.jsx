@@ -5,6 +5,9 @@ import { toast } from 'react-hot-toast';
 import { getOrders, updateOrderStatus, getOrder } from '../../services/api';
 import { format } from 'date-fns';
 import Spinner from '../../components/ui/Spinner';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Download } from 'lucide-react';
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
@@ -125,6 +128,64 @@ const Orders = () => {
     return format(new Date(date), 'MMM d, yyyy h:mm a');
   };
 
+  // Generate PDF
+  const generateReceiptPDF = (orderData, orderId) => {
+    const doc = new jsPDF();
+
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(22, 163, 74); // Green color
+    doc.text('Royal Mobiles', 105, 20, { align: 'center' });
+
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Order Receipt', 105, 30, { align: 'center' });
+
+    // Order Details
+    doc.setFontSize(10);
+    doc.text(`Order ID: ${orderId}`, 15, 45);
+    doc.text(`Date: ${new Date(orderData.createdAt).toLocaleDateString()}`, 15, 50);
+
+    // Customer Details
+    doc.text('Bill To:', 130, 45);
+    doc.text(orderData.user.name, 130, 50);
+    doc.text(orderData.user.phone, 130, 55);
+    doc.text(orderData.user.address.street, 130, 60);
+    doc.text(`${orderData.user.address.city}, ${orderData.user.address.state} - ${orderData.user.address.zipCode}`, 130, 65);
+
+    // Items Table
+    const tableColumn = ["S.No", "Item", "Quantity", "Price", "Total"];
+    const tableRows = orderData.orderItems.map(item => [
+      orderData.orderItems.indexOf(item) + 1,
+      item.name,
+      item.quantity,
+      `Rs. ${item.price}`,
+      `Rs. ${item.price * item.quantity}`
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 75,
+      theme: 'striped',
+      headStyles: { fillColor: [22, 163, 74] }
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+
+    // Totals
+    doc.text(`Subtotal: Rs. ${orderData.itemsPrice}`, 140, finalY);
+    doc.text(`Total: Rs. ${orderData.totalPrice}`, 140, finalY + 7);
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text('Thank you for shopping with Royal Mobiles!', 105, finalY + 20, { align: 'center' });
+    doc.text('For support: contact us at +91 6369122194', 105, finalY + 25, { align: 'center' });
+
+    doc.save(`Order_Receipt_${orderId}.pdf`);
+  };
+
   const OrderDetailsModal = ({ order, onClose }) => {
     if (!order) return null;
 
@@ -133,9 +194,18 @@ const Orders = () => {
         <div className="bg-white rounded-lg max-w-2xl w-full p-6 overflow-y-auto max-h-[90vh]">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Order Details #{order._id.slice(-6)}</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => generateReceiptPDF(order, order._id)}
+                className="flex items-center gap-1 text-primary-600 hover:text-primary-700 px-3 py-1 border border-primary-600 rounded-md hover:bg-primary-50 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-sm font-medium">Receipt</span>
+              </button>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">

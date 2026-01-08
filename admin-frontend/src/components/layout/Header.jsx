@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu } from 'lucide-react';
-import NotificationDropdown from '../ui/NotificationDropdown';
+
 import { User } from 'lucide-react';
 
 const Header = () => {
@@ -11,9 +11,7 @@ const Header = () => {
         <h1 className="text-xl font-bold text-green-600 whitespace-nowrap">Royal Mobiles</h1>
 
         <div className="flex items-center space-x-4 ml-auto">
-          <div className="transform scale-125">
-            <NotificationDropdown />
-          </div>
+
 
           {/* Profile dropdown */}
           <div className="relative">
