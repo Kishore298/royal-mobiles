@@ -10,26 +10,35 @@ import AllProducts from './pages/AllProducts';
 import AllSubcategories from './pages/AllSubcategories';
 import Search from './pages/Search';
 import { CartProvider } from './context/CartContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ContactUs from './pages/ContactUs';
+
 const App = () => {
   return (
-    <Router>
-      <CartProvider>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="subcategories/:categoryId" element={<Subcategories />} />
-            <Route path="products/:subcategoryId" element={<Products />} />
-            <Route path="cart" element={<Cart />} />
-            <Route path="all-products" element={<AllProducts />} />
-            <Route path="all-subcategories" element={<AllSubcategories />} />
-            <Route path="search" element={<Search />} />
-            <Route path="contact-us" element={<ContactUs />} />
-          </Route>
-        </Routes>
-        <Toaster position="top-right" />
-      </CartProvider>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <CartProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              className: 'dark:bg-[#15231a] dark:text-slate-100 dark:border dark:border-emerald-500/20',
+            }}
+          />
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="subcategories/:categoryId" element={<Subcategories />} />
+              <Route path="products/:subcategoryId" element={<Products />} />
+              <Route path="cart" element={<Cart />} />
+              <Route path="all-products" element={<AllProducts />} />
+              <Route path="all-subcategories" element={<AllSubcategories />} />
+              <Route path="search" element={<Search />} />
+              <Route path="contact-us" element={<ContactUs />} />
+            </Route>
+          </Routes>
+        </CartProvider>
+      </Router>
+    </ThemeProvider>
   );
 };
 

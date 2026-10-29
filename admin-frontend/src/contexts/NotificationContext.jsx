@@ -129,6 +129,7 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   const value = {
+    socket,
     notifications,
     unreadCount,
     loading,

@@ -1,56 +1,51 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { getAllProducts, addToCart } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { getAllProducts } from '../services/api';
 import { ProductCard } from '../components/ui/Card';
 import { toast } from 'react-hot-toast';
-import { PackageX } from 'lucide-react';
-import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import { Package, Filter } from 'lucide-react';
+import Spinner from '../components/ui/Spinner';
+import { useCart } from '../context/CartContext';
 
 const AllProducts = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [quantities, setQuantities] = useState({});
+  const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     minPrice: '',
     maxPrice: '',
     sort: 'newest',
-    search: ''
+    search: '',
   });
 
-  // Debounce search
+  const { addToCart } = useCart();
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      setPage(1);
-      fetchProducts(1, true);
-    }, 500);
+      fetchProducts();
+    }, 400);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const fetchProducts = async (pageNum = 1, reset = false) => {
+  const fetchProducts = async () => {
     try {
-      if (pageNum === 1) setIsLoading(true);
+      setIsLoading(true);
       const params = {
-        page: pageNum,
-        limit: 12,
+        limit: 100,
         sort: filters.sort,
         search: filters.search,
         minPrice: filters.minPrice,
-        maxPrice: filters.maxPrice
+        maxPrice: filters.maxPrice,
       };
 
       const response = await getAllProducts(params);
       const newProducts = response.data.data || [];
-
-      if (pageNum === 1 || reset) {
-        setProducts(newProducts);
-      } else {
-        setProducts(prev => [...prev, ...newProducts]);
-      }
-
-      setHasMore(newProducts.length === 12);
+      setProducts(newProducts);
     } catch (error) {
       toast.error('Failed to fetch products');
+      setProducts([]);
     } finally {
       setIsLoading(false);
     }
@@ -58,17 +53,17 @@ const AllProducts = () => {
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleQuantityChange = (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    setQuantities(prev => ({
+    setQuantities((prev) => ({
       ...prev,
-      [productId]: newQuantity
+      [productId]: newQuantity,
     }));
   };
 
@@ -76,117 +71,145 @@ const AllProducts = () => {
     try {
       const quantity = quantities[product._id] || 1;
       addToCart({ ...product, quantity });
-      toast.success('Product added to cart');
+      toast.success(`${product.name} added to cart`);
     } catch (error) {
       toast.error('Failed to add product to cart');
     }
   };
 
-  const loadMore = useCallback(() => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchProducts(nextPage);
-  }, [page]);
-
-  const lastProductRef = useInfiniteScroll(loadMore, hasMore, isLoading);
-
-  const ProductSkeleton = () => (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
-      <div className="p-4">
-        <div className="h-6 bg-gray-200 rounded w-3/4 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/4" />
-      </div>
-    </div>
-  );
-
   return (
-    <div className="py-4 lg:py-8">
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar Filters */}
-        <div className="w-full md:w-64 flex-shrink-0">
-          <div className="bg-white p-6 rounded-lg shadow-md sticky top-24">
-            <h2 className="text-xl font-bold mb-6">Filters</h2>
+    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+            All Products
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Explore our complete catalog of mobile accessories
+          </p>
+        </div>
 
-            <div className="space-y-6">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="md:hidden flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-xs font-semibold text-gray-700 dark:text-gray-300 shadow-sm"
+        >
+          <Filter className="w-3.5 h-3.5 text-primary-600 dark:text-emerald-400" />
+          <span>Filters</span>
+        </button>
+      </div>
 
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Filters Sidebar */}
+        <aside
+          className={`md:w-64 flex-shrink-0 ${
+            showFilters ? 'block' : 'hidden md:block'
+          }`}
+        >
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#121a15] border border-gray-200/80 dark:border-emerald-950/70 shadow-sm sticky top-28 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-emerald-950/60">
+              <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                Refine Search
+              </h2>
+              <button
+                onClick={() => setFilters({ minPrice: '', maxPrice: '', sort: 'newest', search: '' })}
+                className="text-xs text-primary-600 dark:text-emerald-400 hover:underline font-semibold"
+              >
+                Reset
+              </button>
+            </div>
 
-              {/* Sort */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                <select
-                  name="sort"
-                  value={filters.sort}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                Sort By
+              </label>
+              <select
+                name="sort"
+                value={filters.sort}
+                onChange={handleFilterChange}
+                className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500 cursor-pointer"
+              >
+                <option value="newest">Newest Arrivals</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                Price Range (₹)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  name="minPrice"
+                  value={filters.minPrice}
                   onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="newest">Newest Arrivals</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
-              </div>
-
-              {/* Price Range */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    name="minPrice"
-                    value={filters.minPrice}
-                    onChange={handleFilterChange}
-                    placeholder="Min"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                  <input
-                    type="number"
-                    name="maxPrice"
-                    value={filters.maxPrice}
-                    onChange={handleFilterChange}
-                    placeholder="Max"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                </div>
+                  placeholder="Min"
+                  className="w-full text-xs py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500"
+                />
+                <input
+                  type="number"
+                  name="maxPrice"
+                  value={filters.maxPrice}
+                  onChange={handleFilterChange}
+                  placeholder="Max"
+                  className="w-full text-xs py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500"
+                />
               </div>
             </div>
           </div>
-        </div>
+        </aside>
 
         {/* Product Grid */}
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold mb-8">All Products</h1>
-
-          {products.length === 0 && !isLoading ? (
-            <div className="flex flex-col items-center justify-center min-h-[40vh] text-gray-500 bg-white rounded-lg p-8">
-              <PackageX className="h-16 w-16 mb-4" />
-              <h2 className="text-xl font-semibold mb-2">No Products Found</h2>
-              <p className="text-center">Try adjusting your filters.</p>
+        <div className="flex-1 min-w-0">
+          {isLoading && products.length === 0 ? (
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <Spinner size="lg" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
+              <Package className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">No Products Found</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Try clearing or adjusting your search filters.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
-              {products.map((product, index) => {
-                const isLast = products.length === index + 1;
-                return (
-                  <div key={product._id} ref={isLast ? lastProductRef : null}>
-                    <ProductCard
-                      image={product.images[0]?.url || 'https://via.placeholder.com/300x200?text=No+Image'}
-                      title={product.name}
-                      description={product.description}
-                      price={product.price}
-                      quantity={quantities[product._id] || 1}
-                      onQuantityChange={(newQuantity) => handleQuantityChange(product._id, newQuantity)}
-                      onAddToCart={() => handleAddToCart(product)}
-                    />
-                  </div>
-                );
-              })}
-              {isLoading && (
-                Array(6).fill(0).map((_, index) => (
-                  <ProductSkeleton key={`skeleton-${index}`} />
-                ))
-              )}
-            </div>
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: { staggerChildren: 0.04 }
+                }
+              }}
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-5"
+            >
+              {products.map((product) => (
+                <motion.div
+                  key={product._id}
+                  variants={{
+                    hidden: { opacity: 0, y: 16 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+                  }}
+                >
+                  <ProductCard
+                    key={product._id}
+                    image={product.images?.[0] || { url: '' }}
+                    title={product.name}
+                    description={product.description}
+                    price={product.price}
+                    stock={product.stock}
+                    quantity={quantities[product._id] || 1}
+                    onQuantityChange={(q) => handleQuantityChange(product._id, q)}
+                    onAddToCart={() => handleAddToCart(product)}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
           )}
         </div>
       </div>

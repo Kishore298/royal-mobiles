@@ -24,23 +24,20 @@ exports.getOrders = asyncHandler(async (req, res) => {
   // Build query
   let query = {};
 
-  // Search by Order ID or User Name (if populated) - for now supporting Order ID
+  // Search by Order ID, User Name, or Phone Number
   if (search) {
     const searchRegex = { $regex: search, $options: 'i' };
-    // If search is a valid ObjectId, we can search by _id. 
-    // Otherwise we can search user name (requires lookup) or other fields.
-    // For simplicity and performance, currently mostly supporting ID string matching if stored as string or just basic ID match.
-    // Since _id is ObjectId, regex doesn't work directly on it in strict mode. 
-    // However, widespread MERN pattern often uses a separate field or just assumes 'search' might be status or similar.
-    // Given the user prompt "search orders", let's assume they might type an ID.
     if (search.match(/^[0-9a-fA-F]{24}$/)) {
-      query._id = search;
+      query.$or = [
+        { _id: search },
+        { 'user.name': searchRegex },
+        { 'user.phone': searchRegex }
+      ];
     } else {
-      // Fallback: This gets complicated with references. 
-      // For now, let's keep it simple or assume we might search populated user? 
-      // MongoDB doesn't easily support regex on populated fields in a simple find query without aggregation.
-      // We will skip complex user name search for this specific step to avoid breaking existing logic significantly 
-      // unless requested. We'll stick to ID if valid.
+      query.$or = [
+        { 'user.name': searchRegex },
+        { 'user.phone': searchRegex }
+      ];
     }
   }
 
@@ -76,8 +73,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find(query)
     .sort(sort)
     .skip(startIndex)
-    .limit(limit)
-    .populate('user', 'name email');
+    .limit(limit);
 
   // Pagination result
   const pagination = {

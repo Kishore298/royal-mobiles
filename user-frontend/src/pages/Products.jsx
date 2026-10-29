@@ -1,37 +1,39 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { getProductsBySubcategory, getSubcategory, addToCart } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { getProductsBySubcategory, getSubcategory } from '../services/api';
 import { ProductCard } from '../components/ui/Card';
-import { Package } from 'lucide-react';
+import { Package, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-// import useInfiniteScroll from '../hooks/useInfiniteScroll'; // Removed
+import Spinner from '../components/ui/Spinner';
+import { useCart } from '../context/CartContext';
 
 const Products = () => {
   const { subcategoryId } = useParams();
   const [products, setProducts] = useState([]);
   const [subcategory, setSubcategory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [quantities, setQuantities] = useState({});
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
+  const [limit, setLimit] = useState(24);
   const [totalCount, setTotalCount] = useState(0);
-  // const [hasMore, setHasMore] = useState(true); // Removed
+  const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     minPrice: '',
     maxPrice: '',
     sort: 'newest',
-    search: ''
+    search: '',
   });
 
-  // Debounce filter changes
+  const { addToCart } = useCart();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
       fetchData(1, true);
-    }, 500);
+    }, 400);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, subcategoryId, limit]);
 
   const fetchData = async (pageNum = 1, reset = false) => {
@@ -43,12 +45,12 @@ const Products = () => {
         sort: filters.sort,
         search: filters.search,
         minPrice: filters.minPrice,
-        maxPrice: filters.maxPrice
+        maxPrice: filters.maxPrice,
       };
 
       const [productsRes, subcategoryRes] = await Promise.all([
         getProductsBySubcategory(subcategoryId, params),
-        reset ? getSubcategory(subcategoryId) : Promise.resolve(null)
+        reset ? getSubcategory(subcategoryId) : Promise.resolve(null),
       ]);
 
       const newProducts = productsRes?.data?.data?.products || [];
@@ -62,7 +64,7 @@ const Products = () => {
       }
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to fetch products');
+      toast.error('Failed to load products');
       setProducts([]);
     } finally {
       setLoading(false);
@@ -71,17 +73,17 @@ const Products = () => {
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleQuantityChange = (productId, newQuantity) => {
     if (newQuantity < 1) return;
-    setQuantities(prev => ({
+    setQuantities((prev) => ({
       ...prev,
-      [productId]: newQuantity
+      [productId]: newQuantity,
     }));
   };
 
@@ -90,7 +92,7 @@ const Products = () => {
       const quantity = quantities[product._id] || 1;
       addToCart({ ...product, quantity });
       toast.success(`${product.name} added to cart`);
-    } catch (error) {
+    } catch (err) {
       toast.error('Failed to add to cart');
     }
   };
@@ -101,118 +103,172 @@ const Products = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const totalPages = Math.ceil(totalCount / limit);
-
-  const ProductSkeleton = () => (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
-      <div className="p-4">
-        <div className="h-6 bg-gray-200 rounded w-3/4 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/4" />
-      </div>
-    </div>
-  );
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-red-500">{error}</p>
-      </div>
-    );
-  }
+  const totalPages = Math.ceil(totalCount / limit) || 1;
 
   return (
-    <div className="py-4 lg:py-8">
-      <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar Filters */}
-        <div className="w-full md:w-64 flex-shrink-0">
-          <div className="bg-white p-6 rounded-lg shadow-md sticky top-24">
-            <h2 className="text-xl font-bold mb-6">Filters</h2>
+    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
+      {/* Breadcrumb Navigation */}
+      <div className="flex items-center space-x-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
+        <Link to="/" className="text-primary-600 dark:text-emerald-400 hover:underline">
+          Home
+        </Link>
+        <span>/</span>
+        {subcategory?.category && (
+          <>
+            <Link
+              to={`/subcategories/${subcategory.category._id || subcategory.category}`}
+              className="text-primary-600 dark:text-emerald-400 hover:underline"
+            >
+              {subcategory.category.name || 'Category'}
+            </Link>
+            <span>/</span>
+          </>
+        )}
+        <span className="text-gray-800 dark:text-gray-200">
+          {subcategory?.name || 'Products'}
+        </span>
+      </div>
 
-            <div className="space-y-6">
-
-
-              {/* Sort */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                <select
-                  name="sort"
-                  value={filters.sort}
-                  onChange={handleFilterChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="newest">Newest Arrivals</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
-              </div>
-
-              {/* Price Range */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    name="minPrice"
-                    value={filters.minPrice}
-                    onChange={handleFilterChange}
-                    placeholder="Min"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                  <input
-                    type="number"
-                    name="maxPrice"
-                    value={filters.maxPrice}
-                    onChange={handleFilterChange}
-                    placeholder="Max"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Main Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+            {subcategory?.name || 'Products'}
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Browse premium accessories and device-compatible models
+          </p>
         </div>
 
-        {/* Product Grid */}
-        <div className="flex-1">
-          <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold">Products</h1>
-              {subcategory && (
-                <p className="text-gray-600 mt-2">Subcategory: {subcategory.name}</p>
-              )}
+        <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          {/* Filter Toggle on Mobile */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="md:hidden flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-xs font-semibold text-gray-700 dark:text-gray-300 shadow-sm"
+          >
+            <Filter className="w-3.5 h-3.5 text-primary-600 dark:text-emerald-400" />
+            <span>Filters</span>
+          </button>
+
+          {/* Show Limit */}
+          <div className="flex items-center bg-white dark:bg-[#121a15] px-3 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 shadow-sm text-sm">
+            <span className="text-gray-500 dark:text-gray-400 text-xs mr-2 font-medium">Show:</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+              className="bg-transparent text-sm font-semibold text-gray-800 dark:text-gray-200 border-none outline-none cursor-pointer p-0 pr-4"
+            >
+              <option value={12} className="dark:bg-[#121a15]">12</option>
+              <option value={24} className="dark:bg-[#121a15]">24</option>
+              <option value={48} className="dark:bg-[#121a15]">48</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Layout with Filters Panel & Product Grid */}
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Filter Sidebar on Desktop, Collapsible on Mobile */}
+        <aside
+          className={`md:w-64 flex-shrink-0 ${
+            showFilters ? 'block' : 'hidden md:block'
+          }`}
+        >
+          <div className="p-5 rounded-2xl bg-white dark:bg-[#121a15] border border-gray-200/80 dark:border-emerald-950/70 shadow-sm sticky top-28 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-emerald-950/60">
+              <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                Refine Search
+              </h2>
+              <button
+                onClick={() => setFilters({ minPrice: '', maxPrice: '', sort: 'newest', search: '' })}
+                className="text-xs text-primary-600 dark:text-emerald-400 hover:underline font-semibold"
+              >
+                Reset
+              </button>
             </div>
 
-            {/* Styled Limit Selector */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-primary-100 hover:border-primary-300 transition-colors">
-              <span className="text-sm font-medium text-gray-700">Show:</span>
+            {/* Sort Options */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                Sort By
+              </label>
               <select
-                value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="text-sm border-none focus:ring-0 cursor-pointer text-gray-700 font-semibold bg-transparent outline-none"
+                name="sort"
+                value={filters.sort}
+                onChange={handleFilterChange}
+                className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500 cursor-pointer"
               >
-                <option value="12">12</option>
-                <option value="24">24</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
+                <option value="newest">Newest Arrivals</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
               </select>
             </div>
-          </div>
 
-          {products.length === 0 && !loading ? (
-            <div className="flex flex-col items-center justify-center min-h-[40vh] text-gray-500 bg-white rounded-lg p-8">
-              <Package className="h-16 w-16 mb-4" />
-              <h2 className="text-xl font-semibold mb-2">No Products Found</h2>
-              <p className="text-center">Try adjusting your filters.</p>
+            {/* Price Range */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
+                Price Range (₹)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  name="minPrice"
+                  value={filters.minPrice}
+                  onChange={handleFilterChange}
+                  placeholder="Min"
+                  className="w-full text-xs py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500"
+                />
+                <input
+                  type="number"
+                  name="maxPrice"
+                  value={filters.maxPrice}
+                  onChange={handleFilterChange}
+                  placeholder="Max"
+                  className="w-full text-xs py-2 px-3 rounded-xl border border-gray-300 dark:border-emerald-950/70 bg-white dark:bg-[#16221b] text-slate-900 dark:text-slate-100 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Products Grid */}
+        <div className="flex-1 min-w-0">
+          {loading && products.length === 0 ? (
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <Spinner size="lg" />
+            </div>
+          ) : products.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
+              <Package className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">No Products Found</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Try adjusting your price range or search terms.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: { staggerChildren: 0.04 }
+                }
+              }}
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-5"
+            >
               {products.map((product) => (
-                <div key={product._id}>
+                <motion.div
+                  key={product._id}
+                  variants={{
+                    hidden: { opacity: 0, y: 16 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+                  }}
+                >
                   <ProductCard
                     image={product.images?.[0] || { url: '' }}
                     title={product.name}
@@ -220,65 +276,42 @@ const Products = () => {
                     price={product.price}
                     stock={product.stock}
                     quantity={quantities[product._id] || 1}
-                    onQuantityChange={(newQuantity) => handleQuantityChange(product._id, newQuantity)}
+                    onQuantityChange={(q) => handleQuantityChange(product._id, q)}
                     onAddToCart={() => handleAddToCart(product)}
                   />
-                </div>
+                </motion.div>
               ))}
-              {loading && (
-                Array(6).fill(0).map((_, index) => (
-                  <ProductSkeleton key={`skeleton-${index}`} />
-                ))
-              )}
-            </div>
+            </motion.div>
           )}
 
-          {/* Pagination Controls */}
-          {totalCount > 0 && (
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-6">
-              <div className="text-sm text-gray-500">
-                Showing <span className="font-medium">{Math.min((page - 1) * limit + 1, totalCount)}</span> to <span className="font-medium">{Math.min(page * limit, totalCount)}</span> of <span className="font-medium">{totalCount}</span> results
-              </div>
+          {/* Pagination */}
+          {totalCount > 0 && products.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-gray-200 dark:border-emerald-950/60 mt-8">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Showing <span className="font-bold text-gray-800 dark:text-gray-200">{(page - 1) * limit + 1}</span> to{' '}
+                <span className="font-bold text-gray-800 dark:text-gray-200">{Math.min(page * limit, totalCount)}</span> of{' '}
+                <span className="font-bold text-gray-800 dark:text-gray-200">{totalCount}</span> items
+              </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center space-x-2">
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1 || loading}
-                  className={`p-2 rounded-md border ${page === 1
-                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
+                  className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
 
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // Logic to show generic page numbers nicely if many pages, 
-                    // for now simple window or just standard logic. 
-                    // Let's keep it simple: if lots of pages, just show current and neighbors? 
-                    // Or just a simple text input? 
-                    // Let's implement a standard view: 1 .. current .. last?
-                    // For simplicity and speed: Just show generic pagination or Page X of Y
-                    // User requested "implement the pagination ... like we did for admin frontend"
-                    // Admin frontend has "Page X of Y" and prev/next buttons.
-                    // The code below duplicates that style but cleaner.
-                    return null;
-                  })}
-                  <span className="text-sm font-medium text-gray-700 px-2">
-                    Page {page} of {totalPages}
-                  </span>
-                </div>
+                <span className="text-xs font-semibold px-2 text-gray-700 dark:text-gray-300">
+                  Page {page} of {totalPages}
+                </span>
 
                 <button
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages || loading}
-                  className={`p-2 rounded-md border ${page === totalPages
-                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                    }`}
+                  className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>

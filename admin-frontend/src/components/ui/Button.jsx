@@ -10,29 +10,30 @@ const Button = ({
   className = '',
   ...props
 }) => {
-  const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors';
+  const baseClasses = 'inline-flex items-center justify-center font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 active:scale-95';
   
   const variantClasses = {
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
-    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
-    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    primary: 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-sm shadow-emerald-500/20 focus:ring-primary-500',
+    secondary: 'bg-gray-700 dark:bg-gray-800 text-white hover:bg-gray-800 dark:hover:bg-gray-700 focus:ring-gray-500',
+    outline: 'border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#18241d] focus:ring-primary-500 shadow-sm',
+    danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-sm shadow-red-500/20',
+    ghost: 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#18241d] focus:ring-primary-500',
   };
 
   const sizeClasses = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-5 py-2.5 text-base',
   };
 
-  const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed' : '';
+  const disabledClasses = disabled ? 'opacity-50 cursor-not-allowed active:scale-100' : '';
 
   return (
     <button
       className={`
         ${baseClasses}
-        ${variantClasses[variant]}
-        ${sizeClasses[size]}
+        ${variantClasses[variant] || variantClasses.primary}
+        ${sizeClasses[size] || sizeClasses.md}
         ${disabledClasses}
         ${className}
       `}
@@ -51,4 +52,4 @@ const Button = ({
   );
 };
 
-export default Button; 
+export default Button;

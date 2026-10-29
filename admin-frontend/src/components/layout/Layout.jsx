@@ -1,18 +1,21 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
 import Header from './Header';
+import BottomNav from './BottomNav';
 
 const Layout = () => {
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden md:ml-0 ml-[20%] w-[80%] md:w-auto">
-        <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 lg:p-6">
-          <Outlet />
-        </main>
-      </div>
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#080c0a] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      {/* Top Header Navbar */}
+      <Header />
+
+      {/* Main Full-Width Content Container */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
+        <Outlet />
+      </main>
+
+      {/* Mobile Bottom Navigation Bar (< 768px) */}
+      <BottomNav />
     </div>
   );
 };

@@ -1,41 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getAllSubcategories } from '../services/api';
 import { SubcategoryCard } from '../components/ui/Card';
 import { toast } from 'react-hot-toast';
-import { FolderTree, Search } from 'lucide-react';
-import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import { FolderTree, Search, X } from 'lucide-react';
+import Spinner from '../components/ui/Spinner';
 
 const AllSubcategories = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [subcategories, setSubcategories] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
 
-  // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      setPage(1);
-      fetchSubcategories(1, true);
-    }, 500);
+      fetchSubcategories();
+    }, 400);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  const fetchSubcategories = async (pageNum = 1, reset = false) => {
+  const fetchSubcategories = async () => {
     try {
-      if (pageNum === 1) setIsLoading(true);
-      // Assuming getAllSubcategories accepts search param
-      const response = await getAllSubcategories({ page: pageNum, limit: 12, search });
+      setIsLoading(true);
+      const response = await getAllSubcategories({ limit: 100, search });
       const newSubcategories = response.data.data || [];
-
-      if (pageNum === 1 || reset) {
-        setSubcategories(newSubcategories);
-      } else {
-        setSubcategories(prev => [...prev, ...newSubcategories]);
-      }
-
-      setHasMore(newSubcategories.length === 12);
+      setSubcategories(newSubcategories);
     } catch (error) {
       toast.error('Failed to fetch subcategories');
     } finally {
@@ -43,69 +33,63 @@ const AllSubcategories = () => {
     }
   };
 
-  const loadMore = useCallback(() => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchSubcategories(nextPage);
-  }, [page]);
-
-  const lastSubcategoryRef = useInfiniteScroll(loadMore, hasMore, isLoading);
-
-  const SubcategorySkeleton = () => (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
-      <div className="p-4">
-        <div className="h-6 bg-gray-200 rounded w-3/4 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/2" />
-      </div>
-    </div>
-  );
-
   return (
-    <div className="py-4 lg:py-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold">All Subcategories</h1>
+    <div className="space-y-6 sm:space-y-8 animate-fadeIn">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+            All Subcategories
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Browse device models and specific accessory categories
+          </p>
+        </div>
 
-        {/* Search Input */}
-        <div className="relative w-full md:w-64">
+        {/* Search */}
+        <div className="relative w-full sm:w-64">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search subcategories..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full pl-9 pr-8 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-slate-900 dark:text-slate-100 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
           />
-          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {subcategories.length === 0 && !isLoading ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-500">
-          <FolderTree className="h-16 w-16 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No Subcategories Found</h2>
-          <p className="text-center">Try adjusting your search.</p>
+      {isLoading && subcategories.length === 0 ? (
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <Spinner size="lg" />
+        </div>
+      ) : subcategories.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
+          <FolderTree className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">No Subcategories Found</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Try adjusting your search terms.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
-          {subcategories.map((subcategory, index) => {
-            const isLast = subcategories.length === index + 1;
-            return (
-              <div key={subcategory._id} ref={isLast ? lastSubcategoryRef : null}>
-                <Link to={`/subcategories/${subcategory._id}`}>
-                  <SubcategoryCard
-                    image={subcategory.image?.url || 'https://via.placeholder.com/300x200?text=No+Image'}
-                    title={subcategory.name}
-                    productCount={subcategory.products?.length || 0}
-                  />
-                </Link>
-              </div>
-            );
-          })}
-          {isLoading && (
-            Array(4).fill(0).map((_, index) => (
-              <SubcategorySkeleton key={`skeleton-${index}`} />
-            ))
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+          {subcategories.map((subcategory) => (
+            <SubcategoryCard
+              key={subcategory._id}
+              image={subcategory.image?.url}
+              title={subcategory.name}
+              productCount={subcategory.products?.length || 0}
+              onClick={() => navigate(`/products/${subcategory._id}`)}
+            />
+          ))}
         </div>
       )}
     </div>
