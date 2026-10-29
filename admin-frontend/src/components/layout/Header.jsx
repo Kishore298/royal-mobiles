@@ -28,9 +28,9 @@ const Header = () => {
   const navLinks = [
     { label: 'Dashboard', path: '/', icon: LayoutDashboard, exact: true },
     { label: 'Orders', path: '/orders', icon: ShoppingCart, badge: unreadCount },
-    { label: 'Products', path: '/products', icon: Boxes },
     { label: 'Categories', path: '/categories', icon: Package },
     { label: 'Subcategories', path: '/subcategories', icon: Layers },
+    { label: 'Products', path: '/products', icon: Boxes },
   ];
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -74,10 +74,9 @@ const Header = () => {
                   to={item.path}
                   end={item.exact}
                   className={({ isActive }) =>
-                    `relative px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
-                      isActive
-                        ? 'text-primary-600 dark:text-emerald-400 bg-primary-50 dark:bg-emerald-950/60 shadow-sm font-semibold'
-                        : 'text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-emerald-400 hover:bg-gray-50 dark:hover:bg-[#121a15]'
+                    `relative px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${isActive
+                      ? 'text-primary-600 dark:text-emerald-400 bg-primary-50 dark:bg-emerald-950/60 shadow-sm font-semibold'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-emerald-400 hover:bg-gray-50 dark:hover:bg-[#121a15]'
                     }`
                   }
                 >

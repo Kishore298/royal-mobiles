@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getProductsBySubcategory, getSubcategory } from '../services/api';
 import { ProductCard } from '../components/ui/Card';
-import { Package, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Package, Filter } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Spinner from '../components/ui/Spinner';
 import { useCart } from '../context/CartContext';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 
 const Products = () => {
   const { subcategoryId } = useParams();
   const [products, setProducts] = useState([]);
   const [subcategory, setSubcategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [quantities, setQuantities] = useState({});
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(24);
+  const pageRef = useRef(1);
+  const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
@@ -24,24 +26,20 @@ const Products = () => {
     sort: 'newest',
     search: '',
   });
+  const limit = 24;
 
   const { addToCart } = useCart();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1);
-      fetchData(1, true);
-    }, 400);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, subcategoryId, limit]);
-
-  const fetchData = async (pageNum = 1, reset = false) => {
+  const fetchData = async (pageNum = 1) => {
     try {
-      if (pageNum === 1) setLoading(true);
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       const params = {
         page: pageNum,
-        limit: limit,
+        limit,
         sort: filters.sort,
         search: filters.search,
         minPrice: filters.minPrice,
@@ -50,14 +48,18 @@ const Products = () => {
 
       const [productsRes, subcategoryRes] = await Promise.all([
         getProductsBySubcategory(subcategoryId, params),
-        reset ? getSubcategory(subcategoryId) : Promise.resolve(null),
+        pageNum === 1 ? getSubcategory(subcategoryId) : Promise.resolve(null),
       ]);
 
       const newProducts = productsRes?.data?.data?.products || [];
       const total = productsRes?.data?.data?.pagination?.total || 0;
 
-      setProducts(newProducts);
       setTotalCount(total);
+      setProducts((prev) => {
+        const next = pageNum === 1 ? newProducts : [...prev, ...newProducts];
+        setHasMore(next.length < total);
+        return next;
+      });
 
       if (subcategoryRes?.data?.data) {
         setSubcategory(subcategoryRes.data.data);
@@ -65,11 +67,30 @@ const Products = () => {
     } catch (err) {
       console.error('Error fetching data:', err);
       toast.error('Failed to load products');
-      setProducts([]);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      pageRef.current = 1;
+      fetchData(1);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, subcategoryId]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!loading && !loadingMore && hasMore) {
+      pageRef.current += 1;
+      fetchData(pageRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingMore, hasMore, subcategoryId, filters]);
+
+  const lastElementRef = useInfiniteScroll(handleLoadMore, hasMore, loading || loadingMore);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -97,14 +118,6 @@ const Products = () => {
     }
   };
 
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-    fetchData(newPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const totalPages = Math.ceil(totalCount / limit) || 1;
-
   return (
     <div className="space-y-6 sm:space-y-8 animate-fadeIn">
       {/* Breadcrumb Navigation */}
@@ -129,15 +142,18 @@ const Products = () => {
         </span>
       </div>
 
-      {/* Main Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
-            {subcategory?.name || 'Products'}
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Browse premium accessories and device-compatible models
-          </p>
+      {/* Category Heading (First) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-3 border-b-2 border-emerald-500/20 dark:border-emerald-500/30">
+        <div className="flex items-center space-x-3">
+          <div className="h-8 w-2 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600 dark:text-emerald-400">
+              Category
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-gray-100">
+              {subcategory?.category?.name || 'Category'}
+            </h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
@@ -149,23 +165,6 @@ const Products = () => {
             <Filter className="w-3.5 h-3.5 text-primary-600 dark:text-emerald-400" />
             <span>Filters</span>
           </button>
-
-          {/* Show Limit */}
-          <div className="flex items-center bg-white dark:bg-[#121a15] px-3 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 shadow-sm text-sm">
-            <span className="text-gray-500 dark:text-gray-400 text-xs mr-2 font-medium">Show:</span>
-            <select
-              value={limit}
-              onChange={(e) => {
-                setLimit(Number(e.target.value));
-                setPage(1);
-              }}
-              className="bg-transparent text-sm font-semibold text-gray-800 dark:text-gray-200 border-none outline-none cursor-pointer p-0 pr-4"
-            >
-              <option value={12} className="dark:bg-[#121a15]">12</option>
-              <option value={24} className="dark:bg-[#121a15]">24</option>
-              <option value={48} className="dark:bg-[#121a15]">48</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -234,8 +233,21 @@ const Products = () => {
           </div>
         </aside>
 
-        {/* Products Grid */}
-        <div className="flex-1 min-w-0">
+        {/* Product Grid Area with Subcategory Heading */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Subcategory Heading (Second) */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-200">
+                {subcategory?.name || 'Subcategory'}
+              </h2>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                {totalCount} {totalCount === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+          </div>
+
           {loading && products.length === 0 ? (
             <div className="flex items-center justify-center min-h-[40vh]">
               <Spinner size="lg" />
@@ -284,38 +296,28 @@ const Products = () => {
             </motion.div>
           )}
 
-          {/* Pagination */}
-          {totalCount > 0 && products.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-gray-200 dark:border-emerald-950/60 mt-8">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Showing <span className="font-bold text-gray-800 dark:text-gray-200">{(page - 1) * limit + 1}</span> to{' '}
-                <span className="font-bold text-gray-800 dark:text-gray-200">{Math.min(page * limit, totalCount)}</span> of{' '}
-                <span className="font-bold text-gray-800 dark:text-gray-200">{totalCount}</span> items
-              </p>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={page === 1 || loading}
-                  className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-
-                <span className="text-xs font-semibold px-2 text-gray-700 dark:text-gray-300">
-                  Page {page} of {totalPages}
-                </span>
-
-                <button
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={page === totalPages || loading}
-                  className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+          {/* Loading More Indicator */}
+          {loadingMore && (
+            <div className="flex justify-center items-center py-6">
+              <div className="flex items-center space-x-2.5 px-4 py-2 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold shadow-sm">
+                <Spinner size="sm" />
+                <span>Loading more products...</span>
               </div>
             </div>
           )}
+
+          {/* End of products reached */}
+          {!hasMore && products.length > 0 && (
+            <div className="text-center py-6 border-t border-gray-100 dark:border-emerald-950/60 mt-6">
+              <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+                All {totalCount} products loaded
+              </p>
+            </div>
+          )}
+
+          {/* Sentinel node for intersection observer */}
+          <div ref={lastElementRef} className="h-4 w-full" />
         </div>
       </div>
     </div>

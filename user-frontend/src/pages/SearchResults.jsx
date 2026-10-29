@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { searchProducts, addToCart } from '../services/api';
 import { ProductCard } from '../components/ui/Card';
 import { Package, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { toast } from 'react-hot-toast';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-// import useInfiniteScroll from '../hooks/useInfiniteScroll'; // Removed
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import Spinner from '../components/ui/Spinner';
 
 const SearchResults = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -14,12 +13,10 @@ const SearchResults = () => {
   const [query, setQuery] = useState(initialQuery);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const pageRef = useRef(1);
   const [totalCount, setTotalCount] = useState(0);
-  // const [hasMore, setHasMore] = useState(true); // Removed
-  const navigate = useNavigate();
 
   // Sync state with URL param if it changes externally
   useEffect(() => {
@@ -29,88 +26,84 @@ const SearchResults = () => {
   // Debounced search effect
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Update URL to match local query state
-      if (query !== initialQuery) {
-        if (query.trim()) {
-          setSearchParams({ q: query });
-        }
+      if (query !== initialQuery && query.trim()) {
+        setSearchParams({ q: query });
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [query, setSearchParams, initialQuery, limit]);
+  }, [query, setSearchParams, initialQuery]);
 
-  // Fetch logic based on URL Query (Source of Truth)
-  // We need to fetch when URL Query changes OR Page changes.
-  // But wait, if we use Infinite Scroll, page is local state.
-  // So we should rebuild fetch logic.
-
-  const fetchSearchResults = async (pageNum = 1, searchQuery, reset = false) => {
-    if (!searchQuery) return;
+  const fetchSearchResults = useCallback(async (pageNum = 1, searchQuery) => {
+    if (!searchQuery) {
+      setLoading(false);
+      return;
+    }
     try {
-      if (pageNum === 1) setLoading(true);
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       const params = {
         page: pageNum,
-        limit: limit,
-        // Add sort/filters if we want them here too, but start with basic search
+        limit: 20,
       };
 
       const response = await searchProducts(searchQuery, params);
-      const newProducts = response.data?.products || [];
-      const total = response.data?.pagination?.total || 0;
+      const incomingProducts = response.data?.products || response.data?.data?.products || [];
+      const total = response.data?.pagination?.total || response.data?.data?.pagination?.total || 0;
+      const totalPages = response.data?.pagination?.totalPages || response.data?.data?.pagination?.totalPages || Math.ceil(total / 20);
 
-      setProducts(newProducts);
       setTotalCount(total);
-
-      // Pagination logic managed via state now
-      // Check hasMore - removed
-      /*
-      if (response.data?.pagination) {
-        setHasMore(response.data.pagination.page < response.data.pagination.totalPages);
+      if (pageNum === 1) {
+        setProducts(incomingProducts);
       } else {
-        setHasMore(newProducts.length === 12);
+        setProducts((prev) => {
+          const existingIds = new Set(prev.map(p => p._id));
+          const uniqueNew = incomingProducts.filter(p => !existingIds.has(p._id));
+          return [...prev, ...uniqueNew];
+        });
       }
-      */
 
+      setHasMore(pageNum < totalPages && (pageNum * 20 < total));
     } catch (err) {
-      setError('Failed to load search results');
       console.error('Search error:', err);
+      toast.error('Failed to load search results');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, []);
 
-  // When URL Query changes, reset and fetch
+  // When initialQuery changes, reset and fetch page 1
   useEffect(() => {
     if (initialQuery) {
-      setPage(1);
-      fetchSearchResults(1, initialQuery, true);
+      pageRef.current = 1;
+      fetchSearchResults(1, initialQuery);
+    } else {
+      setProducts([]);
+      setLoading(false);
     }
-    if (initialQuery) {
-      setPage(1);
-      fetchSearchResults(1, initialQuery, true);
+  }, [initialQuery, fetchSearchResults]);
+
+  // Infinite scroll callback
+  const loadMore = useCallback(() => {
+    if (!loading && !loadingMore && hasMore && initialQuery) {
+      const nextPage = pageRef.current + 1;
+      pageRef.current = nextPage;
+      fetchSearchResults(nextPage, initialQuery);
     }
-  }, [initialQuery, limit]); // Added limit dependency logic handled in other effect but good to be safe or rely on debounced one.. 
-  // Actually, the debounced effect handles Query changes. This effect handles initial load/URL sync.
-  // If limit changes, we want to re-fetch. But limit change updates `limit` state.
-  // We should make `handlePageChange` or usage of `limit` clear.
-  // The debounced effect calls `fetchData`? No, it sets params.
-  // Let's rely on explicit calls. This effect handles Initial Query.
+  }, [loading, loadingMore, hasMore, initialQuery, fetchSearchResults]);
 
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-    fetchSearchResults(newPage, initialQuery);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const totalPages = Math.ceil(totalCount / limit);
+  const lastElementRef = useInfiniteScroll(loadMore, hasMore, loadingMore);
 
   const ProductSkeleton = () => (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200" />
-      <div className="p-4">
-        <div className="h-6 bg-gray-200 rounded w-3/4 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-1/4" />
+    <div className="bg-white dark:bg-[#121a15] rounded-2xl shadow-sm border border-gray-100 dark:border-emerald-950/70 overflow-hidden animate-pulse">
+      <div className="h-44 bg-gray-200 dark:bg-gray-800" />
+      <div className="p-4 space-y-2">
+        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
+        <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded w-1/2" />
+        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/3 pt-2" />
       </div>
     </div>
   );
@@ -121,117 +114,82 @@ const SearchResults = () => {
   };
 
   return (
-    <div className="py-4 lg:py-8">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold">Search Results</h1>
+    <div className="py-4 lg:py-8 space-y-6 animate-fadeIn">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+            Search Results
+          </h1>
+          {initialQuery && (
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Showing results for <span className="font-semibold text-primary-600 dark:text-emerald-400">"{initialQuery}"</span> ({totalCount} items found)
+            </p>
+          )}
+        </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 items-center w-full md:w-auto">
-          {/* Styled Limit Selector */}
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border-2 border-primary-100 hover:border-primary-300 transition-colors">
-            <span className="text-sm font-medium text-gray-700">Show:</span>
-            <select
-              value={limit}
-              onChange={(e) => {
-                setLimit(Number(e.target.value));
-                setPage(1);
-                // Trigger fetch immediately or let effect? 
-                // We should manually trigger because explicit interaction.
-                // But wait, `fetchSearchResults` depends on `initialQuery` which comes from URL.
-                // If we are just changing limit, `initialQuery` is same.
-                fetchSearchResults(1, initialQuery);
-              }}
-              className="text-sm border-none focus:ring-0 cursor-pointer text-gray-700 font-semibold bg-transparent outline-none"
-            >
-              <option value="12">12</option>
-              <option value="24">24</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-
-          {/* Local Search Input for Refining */}
-          <div className="relative w-full md:w-64">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-          </div>
+        {/* Local Search Input for Refining */}
+        <div className="relative w-full md:w-72">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Refine search query..."
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-slate-900 dark:text-slate-100 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+          />
+          <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400" />
         </div>
       </div>
 
       {!initialQuery ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-500">
-          <Search className="h-16 w-16 mb-4" />
-          <p>Please enter a search query</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-gray-500 dark:text-gray-400">
+          <Search className="h-14 w-14 mb-3 text-gray-300 dark:text-gray-600" />
+          <p className="text-sm font-medium">Please enter a search query above</p>
         </div>
       ) : products.length === 0 && !loading ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-500">
-          <Package className="h-16 w-16 mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No Products Found</h2>
-          <p className="text-center">Try adjusting your search query.</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-12 rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
+          <Package className="h-16 w-16 mb-3 text-gray-300 dark:text-gray-600" />
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">No Products Found</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Try adjusting your search query.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
-          {products.map((product) => (
-            <div key={product._id}>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+            {products.map((product) => (
               <ProductCard
+                key={product._id}
                 image={product.images?.[0]}
                 title={product.name}
                 description={product.description}
                 price={product.price}
                 onAddToCart={() => handleAddToCart(product)}
               />
-            </div>
-          ))}
-          {loading && (
-            Array(6).fill(0).map((_, index) => (
-              <ProductSkeleton key={`skeleton-${index}`} />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Pagination Controls */}
-      {totalCount > 0 && products.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-6">
-          <div className="text-sm text-gray-500">
-            Showing <span className="font-medium">{Math.min((page - 1) * limit + 1, totalCount)}</span> to <span className="font-medium">{Math.min(page * limit, totalCount)}</span> of <span className="font-medium">{totalCount}</span> results
+            ))}
+            {loading && (
+              Array(8).fill(0).map((_, index) => (
+                <ProductSkeleton key={`skeleton-${index}`} />
+              ))
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1 || loading}
-              className={`p-2 rounded-md border ${page === 1
-                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                }`}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-1">
-              <span className="text-sm font-medium text-gray-700 px-2">
-                Page {page} of {totalPages}
-              </span>
-            </div>
-
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === totalPages || loading}
-              className={`p-2 rounded-md border ${page === totalPages
-                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-primary-600'
-                }`}
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
+          {/* Infinite Scroll Sentinel and Loaders */}
+          <div ref={lastElementRef} className="py-8 flex flex-col items-center justify-center min-h-[60px]">
+            {loadingMore && (
+              <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full bg-white dark:bg-[#121a15] border border-gray-200 dark:border-emerald-950/80 shadow-md">
+                <Spinner size="sm" />
+                <span className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-emerald-300">
+                  Discovering more items...
+                </span>
+              </div>
+            )}
+            {!hasMore && products.length > 0 && !loading && (
+              <div className="text-center pt-4">
+                <p className="text-xs font-medium tracking-wide uppercase text-gray-400 dark:text-gray-500">
+                  — You've seen all {products.length} matching products —
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
     </div>
   );

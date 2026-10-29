@@ -1,62 +1,82 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getSubcategoriesByCategory, getCategory } from '../services/api';
 import { SubcategoryCard } from '../components/ui/Card';
 import Spinner from '../components/ui/Spinner';
-import { FolderTree, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { FolderTree, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 
 const Subcategories = () => {
   const { categoryId } = useParams();
   const [subcategories, setSubcategories] = useState([]);
   const [category, setCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(24);
+  const pageRef = useRef(1);
+  const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const limit = 24;
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
+  const fetchData = async (pageNum = 1) => {
+    try {
+      if (pageNum === 1) {
         setLoading(true);
-        const params = { page, limit };
-        const [subcategoriesRes, categoryRes] = await Promise.all([
-          getSubcategoriesByCategory(categoryId, params),
-          getCategory(categoryId),
-        ]);
-
-        if (subcategoriesRes?.data?.data) {
-          setSubcategories(subcategoriesRes.data.data);
-          setTotalCount(subcategoriesRes.data.pagination?.total || 0);
-        } else {
-          setError('No subcategories found');
-        }
-
-        if (categoryRes?.data?.data) {
-          setCategory(categoryRes.data.data);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load subcategories');
-        toast.error('Failed to load subcategories');
-      } finally {
-        setLoading(false);
+      } else {
+        setLoadingMore(true);
       }
-    };
 
-    if (categoryId) {
-      fetchData();
+      const params = { page: pageNum, limit };
+      const [subcategoriesRes, categoryRes] = await Promise.all([
+        getSubcategoriesByCategory(categoryId, params),
+        pageNum === 1 ? getCategory(categoryId) : Promise.resolve(null),
+      ]);
+
+      if (subcategoriesRes?.data?.data) {
+        const newSubs = subcategoriesRes.data.data;
+        const total = subcategoriesRes.data.pagination?.total || 0;
+        setTotalCount(total);
+        setSubcategories((prev) => {
+          const next = pageNum === 1 ? newSubs : [...prev, ...newSubs];
+          setHasMore(next.length < total);
+          return next;
+        });
+      } else if (pageNum === 1) {
+        setError('No subcategories found');
+      }
+
+      if (categoryRes?.data?.data) {
+        setCategory(categoryRes.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load subcategories');
+      toast.error('Failed to load subcategories');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-  }, [categoryId, page, limit]);
-
-  const handlePageChange = (newPage) => {
-    setPage(newPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const totalPages = Math.ceil(totalCount / limit) || 1;
+  useEffect(() => {
+    if (categoryId) {
+      pageRef.current = 1;
+      fetchData(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryId]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!loading && !loadingMore && hasMore) {
+      pageRef.current += 1;
+      fetchData(pageRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadingMore, hasMore, categoryId]);
+
+  const lastElementRef = useInfiniteScroll(handleLoadMore, hasMore, loading || loadingMore);
 
   const handleSubcategoryClick = (subcategoryId) => {
     navigate(`/products/${subcategoryId}`);
@@ -88,22 +108,6 @@ const Subcategories = () => {
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
             Choose a subcategory to browse products
           </p>
-        </div>
-
-        <div className="flex items-center bg-white dark:bg-[#121a15] px-3 py-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 shadow-sm text-sm">
-          <span className="text-gray-500 dark:text-gray-400 text-xs mr-2 font-medium">Show:</span>
-          <select
-            value={limit}
-            onChange={(e) => {
-              setLimit(Number(e.target.value));
-              setPage(1);
-            }}
-            className="bg-transparent text-sm font-semibold text-gray-800 dark:text-gray-200 border-none outline-none cursor-pointer p-0 pr-4"
-          >
-            <option value={12} className="dark:bg-[#121a15]">12</option>
-            <option value={24} className="dark:bg-[#121a15]">24</option>
-            <option value={48} className="dark:bg-[#121a15]">48</option>
-          </select>
         </div>
       </div>
 
@@ -137,38 +141,28 @@ const Subcategories = () => {
         </div>
       )}
 
-      {/* Pagination Controls */}
-      {totalCount > 0 && subcategories.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-200 dark:border-emerald-950/60">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Showing <span className="font-bold text-gray-800 dark:text-gray-200">{(page - 1) * limit + 1}</span> to{' '}
-            <span className="font-bold text-gray-800 dark:text-gray-200">{Math.min(page * limit, totalCount)}</span> of{' '}
-            <span className="font-bold text-gray-800 dark:text-gray-200">{totalCount}</span> subcategories
-          </p>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1 || loading}
-              className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            <span className="text-xs font-semibold px-2 text-gray-700 dark:text-gray-300">
-              Page {page} of {totalPages}
-            </span>
-
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === totalPages || loading}
-              className="p-2 rounded-xl border border-gray-200 dark:border-emerald-950/70 bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#16221b] disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+      {/* Loading More Indicator */}
+      {loadingMore && (
+        <div className="flex justify-center items-center py-6">
+          <div className="flex items-center space-x-2.5 px-4 py-2 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold shadow-sm">
+            <Spinner size="sm" />
+            <span>Loading more subcategories...</span>
           </div>
         </div>
       )}
+
+      {/* End of list reached */}
+      {!hasMore && subcategories.length > 0 && (
+        <div className="text-center py-6 border-t border-gray-100 dark:border-emerald-950/60">
+          <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 flex items-center justify-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
+            All {totalCount} subcategories loaded
+          </p>
+        </div>
+      )}
+
+      {/* Sentinel node for intersection observer */}
+      <div ref={lastElementRef} className="h-4 w-full" />
     </div>
   );
 };

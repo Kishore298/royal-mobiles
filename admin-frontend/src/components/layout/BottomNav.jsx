@@ -16,9 +16,9 @@ const BottomNav = () => {
   const navItems = [
     { label: 'Dashboard', path: '/', icon: LayoutDashboard, exact: true },
     { label: 'Orders', path: '/orders', icon: ShoppingCart, badge: unreadCount },
-    { label: 'Products', path: '/products', icon: Boxes },
     { label: 'Categories', path: '/categories', icon: Package },
     { label: 'Subcategories', path: '/subcategories', icon: Layers },
+    { label: 'Products', path: '/products', icon: Boxes },
   ];
 
   return (
@@ -32,10 +32,9 @@ const BottomNav = () => {
               to={item.path}
               end={item.exact}
               className={({ isActive }) =>
-                `relative flex flex-col items-center justify-center py-1 group ${
-                  isActive
-                    ? 'text-primary-600 dark:text-emerald-400 font-semibold'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                `relative flex flex-col items-center justify-center py-1 group ${isActive
+                  ? 'text-primary-600 dark:text-emerald-400 font-semibold'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`
               }
             >
@@ -55,9 +54,8 @@ const BottomNav = () => {
 
                   <div className="relative z-10">
                     <div
-                      className={`p-1 rounded-xl transition-transform duration-200 ${
-                        isActive ? 'scale-110' : 'group-hover:scale-105'
-                      }`}
+                      className={`p-1 rounded-xl transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-105'
+                        }`}
                     >
                       <Icon className="w-5 h-5" />
                     </div>

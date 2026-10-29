@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus,
@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Layers,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { toast } from 'react-hot-toast';
@@ -27,11 +28,85 @@ import {
 import ConfirmationModal from '../../components/ui/ConfirmationModal';
 import Spinner from '../../components/ui/Spinner';
 
+const groupProductsByCategoryAndSubcategory = (products, categories = [], subcategories = []) => {
+  const catOrderMap = {};
+  const catNameMap = {};
+  categories.forEach((cat, index) => {
+    catOrderMap[cat._id] = index;
+    catNameMap[cat._id] = cat.name;
+  });
+
+  const subNameMap = {};
+  subcategories.forEach((sub) => {
+    subNameMap[sub._id] = sub.name;
+  });
+
+  const categoryMap = {};
+
+  products.forEach((product) => {
+    let catId = 'uncategorized';
+    let catName = 'Other Accessories';
+
+    if (product.category) {
+      if (typeof product.category === 'object' && product.category._id) {
+        catId = product.category._id;
+        catName = product.category.name || catNameMap[catId] || 'Category';
+      } else if (typeof product.category === 'string') {
+        catId = product.category;
+        catName = catNameMap[catId] || 'Category';
+      }
+    }
+
+    let subId = 'general';
+    let subName = 'General Inventory';
+
+    if (product.subcategory) {
+      if (typeof product.subcategory === 'object' && product.subcategory._id) {
+        subId = product.subcategory._id;
+        subName = product.subcategory.name || subNameMap[subId] || 'Subcategory';
+      } else if (typeof product.subcategory === 'string') {
+        subId = product.subcategory;
+        subName = subNameMap[subId] || 'Subcategory';
+      }
+    }
+
+    if (!categoryMap[catId]) {
+      categoryMap[catId] = {
+        id: catId,
+        name: catName,
+        order: catOrderMap[catId] !== undefined ? catOrderMap[catId] : 9999,
+        subcategories: {},
+        totalCount: 0,
+      };
+    }
+
+    if (!categoryMap[catId].subcategories[subId]) {
+      categoryMap[catId].subcategories[subId] = {
+        id: subId,
+        name: subName,
+        products: [],
+      };
+    }
+
+    categoryMap[catId].subcategories[subId].products.push(product);
+    categoryMap[catId].totalCount += 1;
+  });
+
+  return Object.values(categoryMap)
+    .sort((a, b) => a.order - b.order)
+    .map((catGroup) => ({
+      ...catGroup,
+      subcategories: Object.values(catGroup.subcategories),
+    }));
+};
+
 const Products = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [allSubcategories, setAllSubcategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [formData, setFormData] = useState({
@@ -47,7 +122,7 @@ const Products = () => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(25);
+  const [limit, setLimit] = useState(100);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState({
     minPrice: '',
@@ -70,6 +145,16 @@ const Products = () => {
     } catch (error) {
       toast.error('Failed to fetch categories');
       setCategories([]);
+    }
+  }, []);
+
+  const fetchAllSubcategories = useCallback(async () => {
+    try {
+      const response = await getAllSubcategories();
+      setAllSubcategories(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch all subcategories', error);
+      setAllSubcategories([]);
     }
   }, []);
 
@@ -117,7 +202,8 @@ const Products = () => {
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+    fetchAllSubcategories();
+  }, [fetchCategories, fetchAllSubcategories]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -272,6 +358,25 @@ const Products = () => {
     }
   };
 
+  const groupedCategories = useMemo(() => {
+    return groupProductsByCategoryAndSubcategory(products, categories, allSubcategories);
+  }, [products, categories, allSubcategories]);
+
+  const displayedCategories = useMemo(() => {
+    if (selectedCategoryTab === 'all') return groupedCategories;
+    return groupedCategories.filter((cat) => cat.id === selectedCategoryTab);
+  }, [groupedCategories, selectedCategoryTab]);
+
+  const scrollToCategory = (catId) => {
+    setSelectedCategoryTab(catId);
+    if (catId !== 'all') {
+      const el = document.getElementById(`admin-category-${catId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
@@ -281,7 +386,7 @@ const Products = () => {
             Products Catalog
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage inventory, pricing, and product media.
+            Manage inventory, pricing, and product media organized by category and subcategory.
           </p>
         </div>
 
@@ -367,6 +472,7 @@ const Products = () => {
                 <option value={25} className="dark:bg-[#121a15]">25</option>
                 <option value={50} className="dark:bg-[#121a15]">50</option>
                 <option value={100} className="dark:bg-[#121a15]">100</option>
+                <option value={500} className="dark:bg-[#121a15]">All</option>
               </select>
             </div>
           </div>
@@ -435,10 +541,39 @@ const Products = () => {
         )}
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+      {/* Quick Category Jump Bar */}
+      {groupedCategories.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            onClick={() => scrollToCategory('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shadow-sm ${
+              selectedCategoryTab === 'all'
+                ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-emerald-500/20'
+                : 'bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-emerald-950/70 hover:border-emerald-500/40'
+            }`}
+          >
+            All Categories ({products.length})
+          </button>
+          {groupedCategories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => scrollToCategory(cat.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shadow-sm ${
+                selectedCategoryTab === cat.id
+                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-emerald-500/20'
+                  : 'bg-white dark:bg-[#121a15] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-emerald-950/70 hover:border-emerald-500/40'
+              }`}
+            >
+              {cat.name} ({cat.totalCount})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Grouped Products by Category and Subcategory */}
+      <div className="space-y-12">
         {products.length === 0 && !isLoading ? (
-          <div className="col-span-full p-12 text-center rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
+          <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#121a15] border border-gray-100 dark:border-emerald-950/70 shadow-sm">
             <Package className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
             <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">No Products Found</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -446,83 +581,180 @@ const Products = () => {
             </p>
           </div>
         ) : (
-          products.map((product) => (
-            <motion.div
-              key={product._id}
-              whileHover={{ y: -5, scale: 1.01 }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#121a15] border border-gray-200/80 dark:border-emerald-950/70 shadow-sm hover:shadow-2xl hover:shadow-emerald-900/15 hover:border-primary-400/60 dark:hover:border-emerald-500/50 transition-colors duration-200 flex flex-col group relative overflow-hidden"
+          displayedCategories.map((catGroup) => (
+            <section
+              key={catGroup.id}
+              id={`admin-category-${catGroup.id}`}
+              className="space-y-6 pt-2 scroll-mt-24"
             >
-              <div className="relative h-32 sm:h-48 rounded-xl bg-gray-50 dark:bg-[#16221b] flex items-center justify-center p-2.5 overflow-hidden mb-3">
-                {product.images?.[0]?.url ? (
-                  <img
-                    src={product.images[0].url}
-                    alt={product.name}
-                    className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500 ease-out"
-                  />
-                ) : (
-                  <ImageIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
-                )}
-
-                {/* Light sheen sweeping across image on hover */}
-                <div className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent skew-x-[-25deg] -translate-x-[200%] group-hover:translate-x-[400%] transition-transform duration-1000 ease-out pointer-events-none" />
-
-                <div className="absolute top-2 right-2 flex space-x-1.5 opacity-90 group-hover:opacity-100 transition-opacity z-10">
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => handleEdit(product)}
-                    className="p-1.5 bg-white/90 dark:bg-[#111914]/90 backdrop-blur-sm rounded-lg text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-emerald-400 shadow-sm transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.85 }}
-                    onClick={() => handleDelete(product._id, product.name)}
-                    className="p-1.5 bg-white/90 dark:bg-[#111914]/90 backdrop-blur-sm rounded-lg text-red-500 hover:text-red-700 shadow-sm transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </motion.button>
-                </div>
-              </div>
-
-              <div className="flex-1 flex flex-col justify-between space-y-2">
-                <div>
-                  <h3 className="font-bold text-gray-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-emerald-400 transition-colors">
-                    {product.name}
-                  </h3>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm sm:text-base font-extrabold text-primary-600 dark:text-emerald-400">
-                      ₹{Number(product.price).toFixed(2)}
+              {/* 1. Category Heading */}
+              <div className="flex items-center justify-between pb-3 border-b-2 border-emerald-500/20 dark:border-emerald-500/30">
+                <div className="flex items-center space-x-3">
+                  <div className="h-8 w-2 rounded-full bg-gradient-to-b from-emerald-500 to-green-600" />
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-600 dark:text-emerald-400">
+                      Category
                     </span>
-                    <span
-                      className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        product.stock > 10
-                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                          : product.stock > 0
-                          ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
-                          : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300'
-                      }`}
-                    >
-                      {product.stock > 10 && (
-                        <span className="relative flex h-1.5 w-1.5 mr-1">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                        </span>
-                      )}
-                      {product.stock > 0 && product.stock <= 10 && (
-                        <span className="relative flex h-1.5 w-1.5 mr-1">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
-                        </span>
-                      )}
-                      {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900 dark:text-gray-100">
+                      {catGroup.name}
+                    </h2>
                   </div>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                    {catGroup.totalCount} {catGroup.totalCount === 1 ? 'item' : 'items'}
+                  </span>
+                  {catGroup.id !== 'uncategorized' && (
+                    <button
+                      onClick={() => {
+                        setSelectedProduct(null);
+                        setFormData({
+                          name: '',
+                          description: '',
+                          price: '',
+                          stock: '',
+                          category: catGroup.id,
+                          subcategory: '',
+                          images: [],
+                        });
+                        fetchSubcategories(catGroup.id);
+                        setIsModalOpen(true);
+                      }}
+                      className="hidden sm:inline-flex items-center space-x-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-[#16221b] hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-600 text-gray-700 dark:text-gray-300 transition-colors"
+                      title="Add product to this category"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add to {catGroup.name}</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </motion.div>
+
+              {/* Subcategories under this Category */}
+              <div className="space-y-8 pl-1 sm:pl-3">
+                {catGroup.subcategories.map((subGroup) => (
+                  <div
+                    key={subGroup.id}
+                    id={`admin-subcategory-${subGroup.id}`}
+                    className="space-y-4"
+                  >
+                    {/* 2. Subcategory Heading */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+                        <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200">
+                          {subGroup.name}
+                        </h3>
+                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
+                          ({subGroup.products.length})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Product Cards Grid under this Subcategory */}
+                    <motion.div
+                      initial="hidden"
+                      animate="visible"
+                      variants={{
+                        hidden: { opacity: 0 },
+                        visible: {
+                          opacity: 1,
+                          transition: { staggerChildren: 0.03 },
+                        },
+                      }}
+                      className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5"
+                    >
+                      {subGroup.products.map((product) => (
+                        <motion.div
+                          key={product._id}
+                          variants={{
+                            hidden: { opacity: 0, y: 14 },
+                            visible: {
+                              opacity: 1,
+                              y: 0,
+                              transition: { duration: 0.28 },
+                            },
+                          }}
+                          whileHover={{ y: -5, scale: 1.01 }}
+                          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                          className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-[#121a15] border border-gray-200/80 dark:border-emerald-950/70 shadow-sm hover:shadow-2xl hover:shadow-emerald-900/15 hover:border-primary-400/60 dark:hover:border-emerald-500/50 transition-colors duration-200 flex flex-col group relative overflow-hidden"
+                        >
+                          <div className="relative h-32 sm:h-48 rounded-xl bg-gray-50 dark:bg-[#16221b] flex items-center justify-center p-2.5 overflow-hidden mb-3">
+                            {product.images?.[0]?.url ? (
+                              <img
+                                src={product.images[0].url}
+                                alt={product.name}
+                                className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500 ease-out"
+                              />
+                            ) : (
+                              <ImageIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                            )}
+
+                            {/* Light sheen sweeping across image on hover */}
+                            <div className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent skew-x-[-25deg] -translate-x-[200%] group-hover:translate-x-[400%] transition-transform duration-1000 ease-out pointer-events-none" />
+
+                            <div className="absolute top-2 right-2 flex space-x-1.5 opacity-90 group-hover:opacity-100 transition-opacity z-10">
+                              <motion.button
+                                whileTap={{ scale: 0.85 }}
+                                onClick={() => handleEdit(product)}
+                                className="p-1.5 bg-white/90 dark:bg-[#111914]/90 backdrop-blur-sm rounded-lg text-gray-700 dark:text-gray-200 hover:text-primary-600 dark:hover:text-emerald-400 shadow-sm transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </motion.button>
+                              <motion.button
+                                whileTap={{ scale: 0.85 }}
+                                onClick={() => handleDelete(product._id, product.name)}
+                                className="p-1.5 bg-white/90 dark:bg-[#111914]/90 backdrop-blur-sm rounded-lg text-red-500 hover:text-red-700 shadow-sm transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </motion.button>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-between space-y-2">
+                            <div>
+                              <h3 className="font-bold text-gray-900 dark:text-gray-100 text-xs sm:text-sm leading-snug line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-emerald-400 transition-colors">
+                                {product.name}
+                              </h3>
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-sm sm:text-base font-extrabold text-primary-600 dark:text-emerald-400">
+                                  ₹{Number(product.price).toFixed(2)}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    product.stock > 10
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                      : product.stock > 0
+                                      ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                                      : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300'
+                                  }`}
+                                >
+                                  {product.stock > 10 && (
+                                    <span className="relative flex h-1.5 w-1.5 mr-1">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                                    </span>
+                                  )}
+                                  {product.stock > 0 && product.stock <= 10 && (
+                                    <span className="relative flex h-1.5 w-1.5 mr-1">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+                                    </span>
+                                  )}
+                                  {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))
         )}
       </div>
