@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Layers,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { toast } from 'react-hot-toast';
